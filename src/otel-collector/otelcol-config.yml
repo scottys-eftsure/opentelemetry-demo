@@ -140,7 +140,12 @@ receivers:
 
 exporters:
   debug:
-
+    verbosity: normal
+  otlphttp/grafana_cloud:
+    # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
+    endpoint: "${env:GRAFANA_CLOUD_OTLP_ENDPOINT}"
+    auth:
+      authenticator: basicauth/grafana_cloud
 processors:
   memory_limiter:
     check_interval: 5s
@@ -235,25 +240,36 @@ processors:
 
 connectors:
   span_metrics:
+  grafanacloud:
+    host_identifiers: ["host.id"]
+    metrics_flush_interval: 60s
+
+extensions:
+  basicauth/grafana_cloud:
+    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/basicauthextension
+    client_auth:
+      username: "${env:GRAFANA_CLOUD_INSTANCE_ID}"
+      password: "${env:GRAFANA_CLOUD_API_KEY}"
 
 service:
+  extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
       receivers: [otlp]
       processors: [resourcedetection, memory_limiter, transform/sanitize_spans]
-      exporters: [debug, span_metrics]
+      exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
       receivers: [docker_stats, http_check/frontend-proxy, host_metrics, nginx, otlp, redis, postgresql, prometheus/ad, span_metrics]
       processors: [resourcedetection, memory_limiter]
-      exporters: [debug]
+      exporters: [debug, otlphttp/grafana_cloud]
     logs:
       receivers: [otlp]
       processors: [resourcedetection, memory_limiter, transform/sanitize_logs]
-      exporters: [debug]
+      exporters: [debug, otlphttp/grafana_cloud]
     profiles:
       receivers: [otlp]
       processors: [filter/sanitize_profiles, memory_limiter]
-      exporters: [debug]
+      exporters: [debug, otlphttp/grafana_cloud]
   telemetry:
     metrics:
       readers:

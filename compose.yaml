@@ -800,3 +800,9 @@ services:
       - POSTGRES_PORT
       - POSTGRES_MONITORING_PASSWORD
       - GOMEMLIMIT=160MiB
+      - GRAFANA_CLOUD_OTLP_ENDPOINT
+      - GRAFANA_CLOUD_INSTANCE_ID
+      - GRAFANA_CLOUD_API_KEY
+      - OTEL_EXPORTER_OTLP_PROTOCOL
+      - OTEL_EXPORTER_OTLP_HEADERS
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local,cloud.region=ap-southeast-2
