@@ -9,6 +9,7 @@ import CartProvider from '../providers/Cart.provider';
 import { ThemeProvider } from 'styled-components';
 import Theme from '../styles/Theme';
 import FrontendTracer from '../utils/telemetry/FrontendTracer';
+import { initFaro } from '../utils/telemetry/FaroSetup';
 import SessionGateway from '../gateways/Session.gateway';
 import { OpenFeatureProvider, OpenFeature } from '@openfeature/react-sdk';
 import { FlagdWebProvider } from '@openfeature/flagd-web-provider';
@@ -27,6 +28,7 @@ declare global {
 }
 
 if (typeof window !== 'undefined') {
+  initFaro();
   FrontendTracer();
   if (window.location) {
     const session = SessionGateway.getSession();
