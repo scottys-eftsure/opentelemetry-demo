@@ -15,19 +15,42 @@
 #   traces:  otlp_grpc/jaeger, debug, span_metrics
 #   metrics: otlp_http/prometheus, debug
 #   logs:    opensearch, debug
-#
-# Example:
-#
-# exporters:
-#   otlp_grpc/mybackend:
-#     endpoint: https://ingest.mybackend.com
-#
-# service:
-#   pipelines:
-#     traces:
-#       exporters: [otlp_grpc/jaeger, debug, span_metrics, otlp_grpc/mybackend]  # repeat upstream exporters
-#     metrics:
-#       receivers: [docker_stats, http_check/frontend-proxy, host_metrics, nginx, otlp, redis, span_metrics]
-#       exporters: [otlp_http/prometheus, debug, otlp_grpc/mybackend]           # repeat upstream exporters
-#     logs:
-#       exporters: [opensearch, debug, otlp_grpc/mybackend]                     # repeat upstream exporters
+#   profiles: otlp_grpc/firepit, debug
+
+# Grafana Cloud OTLP exporter integration
+# Credentials are sourced from environment variables defined in .env.override
+
+extensions:
+  basicauth/grafana_cloud:
+    # https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/extension/basicauthextension
+    client_auth:
+      username: "${env:GRAFANA_CLOUD_INSTANCE_ID}"
+      password: "${env:GRAFANA_CLOUD_API_KEY}"
+
+exporters:
+  otlphttp/grafana_cloud:
+    # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
+    endpoint: "${env:GRAFANA_CLOUD_OTLP_ENDPOINT}"
+    auth:
+      authenticator: basicauth/grafana_cloud
+
+connectors:
+  grafanacloud:
+    host_identifiers: ["host.id"]
+    metrics_flush_interval: 60s
+
+service:
+  extensions: [basicauth/grafana_cloud]
+  pipelines:
+    traces:
+      # Repeat upstream exporters to keep observability stack active
+      exporters: [debug, otlp_grpc/jaeger, span_metrics, otlphttp/grafana_cloud]
+    metrics:
+      # Repeat upstream exporters to keep observability stack active
+      exporters: [debug, otlp_http/prometheus, otlphttp/grafana_cloud]
+    logs:
+      # Repeat upstream exporters to keep observability stack active
+      exporters: [debug, opensearch, otlphttp/grafana_cloud]
+    profiles:
+      # Repeat upstream exporters to keep observability stack active
+      exporters: [debug, otlp_grpc/firepit, otlphttp/grafana_cloud]

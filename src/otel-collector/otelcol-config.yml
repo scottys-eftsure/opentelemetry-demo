@@ -140,7 +140,7 @@ receivers:
 
 exporters:
   debug:
-
+    verbosity: basic
 processors:
   memory_limiter:
     check_interval: 5s
