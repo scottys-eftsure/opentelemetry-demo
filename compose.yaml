@@ -249,6 +249,8 @@ services:
       - OTEL_COLLECTOR_HOST
       - FLAGD_HOST
       - FLAGD_PORT
+      - FARO_COLLECTOR_URL
+      - FARO_APP_NAME
     healthcheck:
       test: ["CMD", "/nodejs/bin/node", "-e", "require('net').connect(${FRONTEND_PORT},require('os').hostname(),function(){process.exit(0)}).on('error',function(){process.exit(1)})"]
       start_period: 60s
@@ -691,7 +693,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 50M
+          memory: 100M
     restart: unless-stopped
     environment:
       - FLAGD_HOST
