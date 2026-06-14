@@ -249,6 +249,8 @@ services:
       - OTEL_COLLECTOR_HOST
       - FLAGD_HOST
       - FLAGD_PORT
+      - FARO_COLLECTOR_URL
+      - FARO_APP_NAME
     healthcheck:
       test: ["CMD", "/nodejs/bin/node", "-e", "require('net').connect(${FRONTEND_PORT},require('os').hostname(),function(){process.exit(0)}).on('error',function(){process.exit(1)})"]
       start_period: 60s
@@ -771,7 +773,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          memory: 400M
     restart: unless-stopped
     command:
       - --config=/etc/otelcol-config.yml
@@ -799,4 +801,8 @@ services:
       - POSTGRES_HOST
       - POSTGRES_PORT
       - POSTGRES_MONITORING_PASSWORD
-      - GOMEMLIMIT=160MiB
+      - GOMEMLIMIT=320MiB
+      - GRAFANA_CLOUD_OTLP_ENDPOINT
+      - GRAFANA_CLOUD_INSTANCE_ID
+      - GRAFANA_CLOUD_API_KEY
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local,cloud.region=ap-southeast-2

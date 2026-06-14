@@ -1,6 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { trace, context } from '@opentelemetry/api';
 import { CompositePropagator, W3CBaggagePropagator, W3CTraceContextPropagator } from '@opentelemetry/core';
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
 import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base';
@@ -10,6 +11,8 @@ import { resourceFromAttributes, detectResources } from '@opentelemetry/resource
 import { browserDetector } from '@opentelemetry/opentelemetry-browser-detector';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { faro, isInternalFaroOnGlobalObject } from '@grafana/faro-web-sdk';
+import { FaroMetaAttributesSpanProcessor, FaroTraceExporter } from '@grafana/faro-web-tracing';
 import { SessionIdProcessor } from './SessionIdProcessor';
 
 const {
@@ -27,19 +30,33 @@ const FrontendTracer = async () => {
   const detectedResources = detectResources({detectors: [browserDetector]});
   resource = resource.merge(detectedResources);
 
+  const spanProcessors = [
+    new SessionIdProcessor(),
+    new BatchSpanProcessor(
+        new OTLPTraceExporter({
+          url: NEXT_PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 'http://localhost:4318/v1/traces',
+        }),
+        {
+          scheduledDelayMillis: 500,
+        }
+    ),
+  ];
+
+  // Wire Faro into the existing provider when it has been initialised (opt-in).
+  // isInternalFaroOnGlobalObject() is the v2-correct sentinel — faro.api is
+  // pre-populated with stubs before initializeFaro and cannot be used alone.
+  if (isInternalFaroOnGlobalObject()) {
+    spanProcessors.push(
+      new FaroMetaAttributesSpanProcessor(
+        new BatchSpanProcessor(new FaroTraceExporter({ ...faro })),
+        faro.metas,
+      )
+    );
+  }
+
   const provider = new WebTracerProvider({
     resource,
-    spanProcessors: [
-      new SessionIdProcessor(),
-      new BatchSpanProcessor(
-          new OTLPTraceExporter({
-            url: NEXT_PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT || 'http://localhost:4318/v1/traces',
-          }),
-          {
-            scheduledDelayMillis: 500,
-          }
-      ),
-    ],
+    spanProcessors,
   });
 
   const contextManager = new ZoneContextManager();
@@ -52,6 +69,13 @@ const FrontendTracer = async () => {
         new W3CTraceContextPropagator()],
     }),
   });
+
+  // Register the existing OTel context with Faro so all Faro-captured events
+  // (web vitals, exceptions, console logs) carry the active trace and span IDs.
+  // Must be called after provider.register() so the context APIs are wired up.
+  if (isInternalFaroOnGlobalObject()) {
+    faro.api.initOTEL(trace, context);
+  }
 
   registerInstrumentations({
     tracerProvider: provider,
