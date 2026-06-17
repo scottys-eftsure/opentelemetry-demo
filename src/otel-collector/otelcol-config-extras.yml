@@ -43,14 +43,15 @@ service:
   extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
-      # Repeat upstream exporters to keep observability stack active
-      exporters: [debug, otlp_grpc/jaeger, span_metrics, otlphttp/grafana_cloud]
+      # Grafana Cloud only - local observability backends removed
+      # Keep span_metrics connector to generate RED metrics from traces
+      exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
-      # Repeat upstream exporters to keep observability stack active
-      exporters: [debug, otlp_http/prometheus, otlphttp/grafana_cloud]
+      # Grafana Cloud only - local observability backends removed
+      exporters: [debug, otlphttp/grafana_cloud]
     logs:
-      # Repeat upstream exporters to keep observability stack active
-      exporters: [debug, opensearch, otlphttp/grafana_cloud]
+      # Grafana Cloud only - local observability backends removed
+      exporters: [debug, otlphttp/grafana_cloud]
     profiles:
-      # Repeat upstream exporters to keep observability stack active
-      exporters: [debug, otlp_grpc/firepit, otlphttp/grafana_cloud]
+      # Grafana Cloud only - local observability backends removed
+      exporters: [debug, otlphttp/grafana_cloud]
