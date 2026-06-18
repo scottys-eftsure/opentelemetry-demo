@@ -28,6 +28,27 @@ extensions:
       password: "${env:GRAFANA_CLOUD_API_KEY}"
 
 processors:
+  # Add static Grafana host ID to all telemetry resources
+  # Required for Grafana Application Observability
+  transform/add_host_id:
+    error_mode: ignore
+    trace_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+    metric_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+    log_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+    profile_statements:
+      - context: resource
+        statements:
+          - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+
   # Filter to drop ALL load-generator telemetry before sending to Grafana Cloud
   # Used for CTF exercises to prevent load-generator noise from muddying investigation data
   filter/drop_loadgen:
@@ -57,22 +78,18 @@ service:
   extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
-      # Filter load-generator before sending to Grafana Cloud
-      # Must include all base processors to keep them active
-      processors: [resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen]
+      # Add host ID first, then apply resource detection and other processors
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen]
       exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
-      # Filter load-generator before sending to Grafana Cloud
-      # Must include all base processors to keep them active
-      processors: [resourcedetection, memory_limiter, filter/drop_loadgen]
+      # Add host ID first, then apply resource detection and other processors
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
     logs:
-      # Filter load-generator before sending to Grafana Cloud
-      # Must include all base processors to keep them active
-      processors: [resourcedetection, memory_limiter, transform/sanitize_logs, filter/drop_loadgen]
+      # Add host ID first, then apply resource detection and other processors
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_logs, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
     profiles:
-      # Filter load-generator before sending to Grafana Cloud
-      # Must include all base processors to keep them active
-      processors: [filter/sanitize_profiles, memory_limiter, filter/drop_loadgen]
+      # Add host ID first, then apply other processors
+      processors: [transform/add_host_id, filter/sanitize_profiles, memory_limiter, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
