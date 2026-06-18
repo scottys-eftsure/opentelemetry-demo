@@ -27,6 +27,20 @@ extensions:
       username: "${env:GRAFANA_CLOUD_INSTANCE_ID}"
       password: "${env:GRAFANA_CLOUD_API_KEY}"
 
+processors:
+  # Filter to drop ALL load-generator telemetry before sending to Grafana Cloud
+  # Used for CTF exercises to prevent load-generator noise from muddying investigation data
+  filter/drop_loadgen:
+    error_mode: ignore
+    metric_conditions:
+      - resource.attributes["service.name"] == "load-generator"
+    trace_conditions:
+      - resource.attributes["service.name"] == "load-generator"
+    log_conditions:
+      - resource.attributes["service.name"] == "load-generator"
+    profile_conditions:
+      - resource.attributes["service.name"] == "load-generator"
+
 exporters:
   otlphttp/grafana_cloud:
     # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
@@ -43,15 +57,22 @@ service:
   extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
-      # Grafana Cloud only - local observability backends removed
-      # Keep span_metrics connector to generate RED metrics from traces
+      # Filter load-generator before sending to Grafana Cloud
+      # Must include all base processors to keep them active
+      processors: [resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen]
       exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
-      # Grafana Cloud only - local observability backends removed
+      # Filter load-generator before sending to Grafana Cloud
+      # Must include all base processors to keep them active
+      processors: [resourcedetection, memory_limiter, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
     logs:
-      # Grafana Cloud only - local observability backends removed
+      # Filter load-generator before sending to Grafana Cloud
+      # Must include all base processors to keep them active
+      processors: [resourcedetection, memory_limiter, transform/sanitize_logs, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
     profiles:
-      # Grafana Cloud only - local observability backends removed
+      # Filter load-generator before sending to Grafana Cloud
+      # Must include all base processors to keep them active
+      processors: [filter/sanitize_profiles, memory_limiter, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]
