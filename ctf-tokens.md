@@ -1,11 +1,11 @@
-# 🚩 CTF Answer Key — TESTING_FLAG tokens
+# 🚩 CTF Answer Key — EFTSURE_FLAG tokens
 
 > **⚠️ FACILITATOR ANSWER KEY.** The repo is private to participants, so committing is fine.
 > If it ever becomes accessible, every challenge is spoiled.
 >
-> **🧪 TESTING PREFIX IN USE:** all tokens currently use the placeholder prefix `TESTING_FLAG`
-> while iterating, so the real `EFTSURE_FLAG` prefix never lands in test history. **Final step
-> before the event: swap `TESTING_FLAG` → `EFTSURE_FLAG` everywhere** (code + this file).
+> **✅ LIVE TOKENS:** these are the real `EFTSURE_FLAG` tokens with fresh hashes — the earlier
+> placeholder values are dead. Rebuild + redeploy all affected services (and restart the collector)
+> for the new values to take effect.
 
 Telemetry backend: **Grafana Cloud** stack `hackathon.grafana.net` (gcx context `hackathon`,
 namespace `ctf`). Demo runs via `make start-minimal-no-o11y`. Tokens are **static, one per
@@ -26,20 +26,20 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
-| 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `TESTING_FLAG{cart_readiness_dn41x}` | ✅ implemented + builds |
-| 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ✅ verified (log + trace) |
-| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
-| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
-| 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
-| 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
-| 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
-| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ✅ verified (token on errored payment charge spans) |
+| 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `EFTSURE_FLAG{cart_readiness_9t3kx}` | ✅ implemented + builds |
+| 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `EFTSURE_FLAG{catalog_fault_r7m2w}` | ✅ verified (log + trace) |
+| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_FLAG{ad_gc_pause_b8x4q}` | ✅ implemented + builds |
+| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}` | ✅ verified (JVM saturates under 2-core cap) |
+| 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `EFTSURE_FLAG{email_heap_creep_h2c7j}` | ✅ verified (token on both email mem metrics) |
+| 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `EFTSURE_FLAG{payment_offline_t4w9r}` | ✅ verified (token on errored `charge` span) |
+| 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `EFTSURE_FLAG{reco_cache_bloat_k3z8m}` | ✅ verified (token on cache-miss spans) |
+| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `EFTSURE_FLAG{charge_declined_q6f2n}` | ✅ verified (token on errored payment charge spans) |
 
 ---
 
 ## #1 — `failedReadinessProbe` 🟢 Log
 
-- **Token:** `TESTING_FLAG{cart_readiness_dn41x}`
+- **Token:** `EFTSURE_FLAG{cart_readiness_9t3kx}`
 - **Status:** ✅ implemented, cart image builds.
 - **Service / files:** cart (C#) — `src/cart/src/services/HealthCheckService.cs` (token in the
   `HealthCheckResult.Unhealthy(...)` description) and `src/cart/src/Program.cs`
@@ -53,19 +53,19 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
   facilitator switches the flag on.
 - **Find it (Loki):**
   ```
-  {service_name="cart"} |= "TESTING_FLAG"
+  {service_name="cart"} |= "EFTSURE_FLAG"
   ```
   or filter to the health-check error: `{service_name="cart"} | HealthStatus = "Unhealthy"`.
 - **Hint ladder:**
   1. "A core service is reporting itself unhealthy — which one, and how would you know?"
   2. "Check that service's **logs** in Loki."
-  3. "Look at the health-check failure log's description / search the service logs for `TESTING_FLAG`."
+  3. "Look at the health-check failure log's description / search the service logs for `EFTSURE_FLAG`."
 
 ---
 
 ## #2 — `productCatalogFailure` 🟢 Log + Trace
 
-- **Token:** `TESTING_FLAG{catalog_fault_p4l9k}`
+- **Token:** `EFTSURE_FLAG{catalog_fault_r7m2w}`
 - **Status:** ✅ verified on remote — token in both the error log and the errored span.
 - **Where:** `src/product-catalog/main.go` `GetProduct` failure branch — reworded the giveaway message
   to a realistic datastore error, set `incident_ref` span attribute (+ `status=error` +
@@ -73,7 +73,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 - **Flag note:** targeting rule removed in `demo.flagd.json` — now a plain on/off flag (defaults
   `off`). Toggling it **on** fails **all** product lookups (storefront-wide outage; cascades into
   cart/checkout while on) — turn on only for this challenge.
-- **Find it:** Loki `{service_name="product-catalog"} |= "TESTING_FLAG"` (the error log message),
+- **Find it:** Loki `{service_name="product-catalog"} |= "EFTSURE_FLAG"` (the error log message),
   and/or Tempo `{ resource.service.name = "product-catalog" && status = error }` /
   `{ span.incident_ref != "" }`.
 - **Why Easy:** with both error logs *and* errored traces lighting up, it's very obvious — a good
@@ -85,7 +85,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ## #3 — `adManualGc` 🟢 Log
 
-- **Token:** `TESTING_FLAG{ad_gc_pause_7k2pm}`
+- **Token:** `EFTSURE_FLAG{ad_gc_pause_b8x4q}`
 - **Status:** ✅ implemented, ad image builds.
 - **Service / files:** ad (Java) — `src/ad/src/main/java/oteldemo/AdService.java` ~243 (token in the
   WARN) and `src/ad/src/main/java/oteldemo/problempattern/GarbageCollectionTrigger.java` (lines 45, 58).
@@ -94,21 +94,21 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
   "manual garbage collection", "artificially triggered") so they read like a genuine heap-pressure
   incident:
   - `AdService`: "High heap pressure detected in ad service; forcing a full GC to reclaim memory,
-    response latency may spike. ref=TESTING_FLAG{ad_gc_pause_7k2pm}"
+    response latency may spike. ref=EFTSURE_FLAG{ad_gc_pause_b8x4q}"
   - `GarbageCollectionTrigger`: "Heap usage critical; initiating full GC cycle, next sweep in 10s."
   - `GarbageCollectionTrigger` (now WARN): "Full GC pauses stalled the ad service for N ms"
 - **Where the token lives:** the lead `AdService` WARN log body.
-- **Find it (Loki):** `{service_name="ad"} |= "TESTING_FLAG"` (or browse ad WARN logs for the heap-pressure messages).
+- **Find it (Loki):** `{service_name="ad"} |= "EFTSURE_FLAG"` (or browse ad WARN logs for the heap-pressure messages).
 - **Hint ladder:**
   1. "A service is suffering heap pressure / GC pauses — which one?"
   2. "Check the **ad** service WARN logs."
-  3. "Search ad logs for `TESTING_FLAG`."
+  3. "Search ad logs for `EFTSURE_FLAG`."
 
 ---
 
 ## #4 — `adHighCpu` 🟡 Metric (collector threshold)
 
-- **Token:** `TESTING_FLAG{ad_cpu_thermal_q9w3e}`
+- **Token:** `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}`
 - **Status:** ✅ verified on remote — with the 2-core cap, `jvm_cpu_recent_utilization_ratio` saturates and the token stamps.
 - **Make-it-look-real:** ad is **CPU-capped to 2 cores** in `compose.extras.yaml`
   (`cpus: "2"`). docker reports `container_cpu_utilization_ratio` against the *host's* ~70 cores, so
@@ -130,7 +130,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ## #5 — `emailMemoryLeak` 🟡 Metric (collector threshold)
 
-- **Token:** `TESTING_FLAG{email_heap_creep_v5t8r}`
+- **Token:** `EFTSURE_FLAG{email_heap_creep_h2c7j}`
 - **Status:** ✅ verified on remote — token stamped on both `container_memory_percent_ratio` and `container_memory_usage_total_bytes` for email once past threshold.
 - **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
   metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale**:
@@ -150,7 +150,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ## #6 — `paymentUnreachable` 🟡 Trace
 
-- **Token:** `TESTING_FLAG{payment_offline_z3x7c}`
+- **Token:** `EFTSURE_FLAG{payment_offline_t4w9r}`
 - **Status:** ✅ verified on remote — token on the dedicated errored `charge` span.
 - **Where:** `src/checkout/main.go` `chargeCard()` — wraps the charge in its own `charge` span; when
   the flag points payment at `badAddress:50051`, sets `incident_ref` on that span and
@@ -167,7 +167,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ## #7 — `recommendationCacheFailure` 🟡 Trace
 
-- **Token:** `TESTING_FLAG{reco_cache_bloat_m6n2b}`
+- **Token:** `EFTSURE_FLAG{reco_cache_bloat_k3z8m}`
 - **Status:** ✅ verified on remote — token on cache-miss `get_product_list` spans.
 - **Where:** `src/recommendation/recommendation_server.py` — in `get_product_list`, on the
   **cache-miss branch** (the path that bloats `cached_ids`), set `incident_ref` on the
@@ -184,7 +184,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ## #8 — `paymentFailure` 🔴 Trace (intermittent)
 
-- **Token:** `TESTING_FLAG{charge_declined_h8j5g}`
+- **Token:** `EFTSURE_FLAG{charge_declined_q6f2n}`
 - **Status:** ✅ verified on remote — token on errored payment `charge` spans (`status=error`).
 - **Where:** `src/payment/charge.js` — on the failing branch (`Math.random() < paymentFailure`), set
   `incident_ref` on the payment `charge` span before it throws; the existing catch records the
