@@ -109,6 +109,39 @@ processors:
           - set(attributes["asserts_env"], resource.attributes["deployment.environment.name"]) where resource.attributes["deployment.environment.name"] != nil
           - set(attributes["asserts_site"], resource.attributes["cloud.region"]) where resource.attributes["cloud.region"] != nil
 
+  # Fix mis-scaled docker_stats "percent" metrics. The receiver emits container.memory.percent
+  # and container.cpu.utilization as 0-100 values but tags them unit "1" (a 0-1 ratio), so the
+  # Prometheus exporter names them *_ratio and Grafana renders them x100 (e.g. 45 -> 4500%).
+  # Divide by 100 here so they become genuine 0-1 ratios; every App O11y panel then shows the
+  # correct percentage, and multi-core CPU (>1 core) correctly reads >100%.
+  transform/fix_container_pct_scale:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(value_double, value_double / 100) where metric.name == "container.memory.percent"
+          - set(value_double, value_double / 100) where metric.name == "container.cpu.utilization"
+
+  # CTF metric challenges: stamp an `incident_token` datapoint attribute (promoted to a
+  # per-series Prometheus label) onto a service's resource metrics when they cross a severity
+  # threshold -- i.e. the token only appears once the symptom is bad enough, like an alert firing.
+  # NOTE: names here are the in-pipeline OTel (dotted) names, NOT the Prometheus names you see in
+  # Grafana (container.memory.percent -> container_memory_percent_ratio, etc). Two metrics carry
+  # each token for redundancy (in case Adaptive Metrics drops a label or players look elsewhere).
+  # Thresholds: email = safe separation; ad CPU = CALIBRATE against the live spike (see comments).
+  transform/ctf_metric_flags:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          # Runs AFTER transform/fix_container_pct_scale, so container.* values are now 0-1 ratios.
+          # #4 emailMemoryLeak -- baseline ~0.11 ratio / ~57MB, leak -> ~0.5 ratio / ~256MB+
+          - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.percent" and resource.attributes["service.name"] == "email" and value_double > 0.4
+          - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.usage.total" and resource.attributes["service.name"] == "email" and value_int > 150000000
+          # #3 adHighCpu -- container baseline ~0.105 ratio; jvm baseline ~0.064. CALIBRATE both vs the live spike.
+          - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
+          - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.15
+
 exporters:
   otlphttp/grafana_cloud:
     # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
@@ -142,7 +175,7 @@ service:
     metrics:
       # Add host ID first, then resource detection; stamp asserts/service labels after
       # detection (so env/region are present), then batch last before export.
-      processors: [transform/add_host_id, resourcedetection, memory_limiter, filter/drop_loadgen, transform/asserts_labels, batch]
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, filter/drop_loadgen, transform/asserts_labels, transform/fix_container_pct_scale, transform/ctf_metric_flags, batch]
       exporters: [debug, otlphttp/grafana_cloud]
     logs:
       # Add host ID first, then apply resource detection and other processors; batch last before export

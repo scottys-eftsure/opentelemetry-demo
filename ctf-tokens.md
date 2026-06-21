@@ -15,12 +15,17 @@ Difficulty comes from *which signal you check* and *intermittency*, not obfuscat
 log challenges (#1, #2, #7) are findable by a Loki free-text search; metric/trace tokens are
 invisible to log search by design.
 
+> **Collector side-fix:** `transform/fix_container_pct_scale` divides `container.memory.percent`
+> and `container.cpu.utilization` by 100 so they're true 0-1 ratios. This corrects a `docker_stats`
+> mis-scaling (values were 0-100 under a `_ratio` name → App O11y showed e.g. 4500% instead of 45%).
+> All metric thresholds below are on this corrected 0-1 scale.
+
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
 | 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `TESTING_FLAG{cart_readiness_dn41x}` | ✅ implemented + builds |
 | 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
-| 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ⏳ planned |
-| 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ⏳ planned |
+| 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | 🛠️ implemented — CPU thresholds need calibration |
+| 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ implemented |
 | 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ⏳ planned |
 | 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ⏳ planned |
 | 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ⏳ planned |
@@ -77,28 +82,39 @@ invisible to log search by design.
 
 ---
 
-## #3 — `adHighCpu` 🟡 Metric (collector threshold)  *(planned)*
+## #3 — `adHighCpu` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{ad_cpu_thermal_q9w3e}`
-- **Where:** OTTL rule in `src/otel-collector/otelcol-config-extras.yml` stamping
-  `incident_token` onto `container_cpu_utilization_ratio{service_name="ad"}` when
-  `value_double > <threshold>` (confirm ad baseline vs spike).
-- **Find it (PromQL):** `container_cpu_utilization_ratio{service_name="ad"}` → inspect labels for
-  `incident_token`. Appears only while CPU is above threshold.
+- **Status:** 🛠️ implemented (collector rule); **CPU thresholds need calibration** vs the live spike.
+- **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
+  metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale** (see the
+  `transform/fix_container_pct_scale` ÷100 fix below):
+  - `container.cpu.utilization` (→ `container_cpu_utilization_ratio`), `service.name="ad"`,
+    `value_double > 0.18` (baseline ~0.105; `adHighCpu` runs 4 CPU-bound threads). **CALIBRATE.**
+  - `jvm.cpu.recent_utilization` (→ `jvm_cpu_recent_utilization_ratio`, already 0-1, NOT rescaled),
+    `service.name="ad"`, `value_double > 0.15` (baseline ~0.064). **CALIBRATE.**
+- **Find it (PromQL):** `container_cpu_utilization_ratio{service_name="ad"}` or
+  `jvm_cpu_recent_utilization_ratio{service_name="ad"}` → inspect labels for `incident_token`.
+  Appears only while CPU is above threshold.
 - **Hint ladder:** 1) "A service is burning CPU." 2) "Find the **CPU metric** for that service."
-  3) "Inspect the series **labels** when it's spiking."
+  3) "Inspect the series **labels** while it's spiking."
 
 ---
 
-## #4 — `emailMemoryLeak` 🟡 Metric (collector threshold)  *(planned)*
+## #4 — `emailMemoryLeak` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{email_heap_creep_v5t8r}`
-- **Where:** OTTL `transform/ctf_email_leak` in `otelcol-config-extras.yml` stamping `incident_token`
-  onto `container_memory_percent_ratio{service_name="email"}` when `value_double > ~150`
-  (baseline ≤33%, leak → thousands).
-- **Find it (PromQL):** `container_memory_percent_ratio{service_name="email"}` → inspect labels for
-  `incident_token`. Appears only above threshold (i.e. once the leak is severe).
-- **Hint ladder:** 1) "A service's memory is climbing." 2) "Find the **memory % metric** for that
+- **Status:** ✅ implemented (collector rule).
+- **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
+  metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale**:
+  - `container.memory.percent` (→ `container_memory_percent_ratio`), `service.name="email"`,
+    `value_double > 0.4` (baseline ~0.11 ratio, leak → ~0.5+).
+  - `container.memory.usage.total` (→ `container_memory_usage_total_bytes`), `service.name="email"`,
+    `value_int > 150000000` (baseline ~57 MB, leak → ~256 MB).
+- **Find it (PromQL):** `container_memory_percent_ratio{service_name="email"}` or
+  `container_memory_usage_total_bytes{service_name="email"}` → inspect labels for `incident_token`.
+  Appears only above threshold (once the leak is severe).
+- **Hint ladder:** 1) "A service's memory is climbing." 2) "Find the **memory metric** for that
   service." 3) "Inspect the series **labels** once it's well above normal."
 
 ---
