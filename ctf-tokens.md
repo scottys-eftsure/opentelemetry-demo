@@ -85,19 +85,22 @@ invisible to log search by design.
 ## #3 — `adHighCpu` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{ad_cpu_thermal_q9w3e}`
-- **Status:** 🛠️ implemented (collector rule); **CPU thresholds need calibration** vs the live spike.
-- **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
-  metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale** (see the
-  `transform/fix_container_pct_scale` ÷100 fix below):
-  - `container.cpu.utilization` (→ `container_cpu_utilization_ratio`), `service.name="ad"`,
-    `value_double > 0.18` (baseline ~0.105; `adHighCpu` runs 4 CPU-bound threads). **CALIBRATE.**
-  - `jvm.cpu.recent_utilization` (→ `jvm_cpu_recent_utilization_ratio`, already 0-1, NOT rescaled),
-    `service.name="ad"`, `value_double > 0.15` (baseline ~0.064). **CALIBRATE.**
-- **Find it (PromQL):** `container_cpu_utilization_ratio{service_name="ad"}` or
-  `jvm_cpu_recent_utilization_ratio{service_name="ad"}` → inspect labels for `incident_token`.
-  Appears only while CPU is above threshold.
-- **Hint ladder:** 1) "A service is burning CPU." 2) "Find the **CPU metric** for that service."
-  3) "Inspect the series **labels** while it's spiking."
+- **Status:** 🛠️ implemented (collector rule + 4-core cap); confirm JVM saturation under load on the remote.
+- **Make-it-look-real:** ad is **CPU-capped to 2 cores** in `compose.extras.yaml`
+  (`cpus: "2"`). docker reports `container_cpu_utilization_ratio` against the *host's* ~70 cores, so
+  the busy threads barely register there — but the JVM is cgroup-aware, so the 4 CPULoad threads
+  over-subscribe the 2-core cap 2:1, making `jvm_cpu_recent_utilization_ratio` **saturate to ~1.0**
+  with heavy throttling (a real CPU-exhaustion incident: ad starves, latency/errors climb).
+- **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`:
+  - **Primary —** `jvm.cpu.recent_utilization` (→ `jvm_cpu_recent_utilization_ratio`),
+    `service.name="ad"`, `value_double > 0.7` (capped baseline ≤~0.5 on bursts, saturates to ~1.0).
+  - **Best-effort second —** `container.cpu.utilization` (→ `container_cpu_utilization_ratio`),
+    `value_double > 0.18`. Host-relative, so it rarely fires; confirm under load and likely swap for
+    `process_cpu_utilization_ratio` if that proves cgroup-aware.
+- **Find it (PromQL):** `jvm_cpu_recent_utilization_ratio{service_name="ad"}` → inspect labels for
+  `incident_token`. (Also visible as a CPU spike in the ad service's JVM Runtime view.)
+- **Hint ladder:** 1) "A service is burning CPU / getting throttled." 2) "Find the **CPU metric**
+  for that service (JVM/runtime CPU)." 3) "Inspect the series **labels** while it's pegged."
 
 ---
 

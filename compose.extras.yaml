@@ -34,7 +34,7 @@
 # on 64 GB, and these are ceilings, not reservations (actual usage is far lower).
 # ------------------------------------------------------------------------------
 services:
-  ad:              { deploy: { resources: { limits: { memory: 1536M } } } }
+  ad:              { deploy: { resources: { limits: { memory: 1536M, cpus: "2" } } } }
   cart:            { deploy: { resources: { limits: { memory: 768M } } } }
   checkout:        { deploy: { resources: { limits: { memory: 256M } } } }
   currency:        { deploy: { resources: { limits: { memory: 128M } } } }
