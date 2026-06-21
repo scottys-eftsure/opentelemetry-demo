@@ -140,22 +140,8 @@
     },
     "productCatalogFailure": {
       "defaultVariant": "off",
-      "description": "Fail product catalog service on a specific product",
+      "description": "Fail product catalog service",
       "state": "ENABLED",
-      "targeting": {
-        "if": [
-          {
-            "==": [
-              {
-                "var": "product_id"
-              },
-              "OLJCESPC7Z"
-            ]
-          },
-          "off",
-          "off"
-        ]
-      },
       "variants": {
         "off": false,
         "on": true

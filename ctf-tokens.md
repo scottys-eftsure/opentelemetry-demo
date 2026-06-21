@@ -27,8 +27,8 @@ invisible to log search by design.
 | 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
 | 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
 | 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
-| 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | 🛠️ implemented + builds; verify on remote |
-| 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ⏳ planned |
+| 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
+| 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | 🛠️ implemented + builds; verify on remote |
 | 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ⏳ planned |
 
 ---
@@ -142,7 +142,7 @@ invisible to log search by design.
 ## #6 — `recommendationCacheFailure` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{reco_cache_bloat_m6n2b}`
-- **Status:** 🛠️ implemented, recommendation image builds; verify on remote.
+- **Status:** ✅ verified on remote — token on cache-miss `get_product_list` spans.
 - **Where:** `src/recommendation/recommendation_server.py` — in `get_product_list`, on the
   **cache-miss branch** (the path that bloats `cached_ids`), set `app.cache.incident_ref` on the
   `get_product_list` span alongside `demo.recommendation.cache_hit=false`.
@@ -156,17 +156,21 @@ invisible to log search by design.
 
 ---
 
-## #7 — `productCatalogFailure` 🔴 Log + Trace  *(planned)*
+## #7 — `productCatalogFailure` 🔴 Log + Trace
 
 - **Token:** `TESTING_FLAG{catalog_fault_p4l9k}`
-- **Where:** `src/product-catalog/main.go` ~369-372 — **add** an `slog.LevelError` log on the failure
-  branch (token in the log) alongside the existing error span event (token optionally on the event).
-- **Flag note:** targeting rule currently resolves `off`/`off` — set `defaultVariant:"on"` or fix the
-  targeting in `demo.flagd.json` to use it.
-- **Find it:** Loki `{service_name="product-catalog"} |= "TESTING_FLAG"` and/or Tempo
-  `{ resource.service.name = "product-catalog" && status = error }`.
-- **Hint ladder:** 1) "A specific product errors out." 2) "Check product-catalog **error logs** or
-  **error traces**." 3) "Read the error message / span event."
+- **Status:** 🛠️ implemented, product-catalog image builds; verify on remote.
+- **Where:** `src/product-catalog/main.go` `GetProduct` failure branch — reworded the giveaway message
+  to a realistic datastore error, set `app.catalog.incident_ref` span attribute (+ `status=error` +
+  event), and added an `slog.LevelError` log whose **message** contains the token.
+- **Flag note:** targeting rule removed in `demo.flagd.json` — now a plain on/off flag (defaults
+  `off`). Toggling it **on** fails **all** product lookups (storefront-wide outage; cascades into
+  cart/checkout while on) — turn on only for this challenge.
+- **Find it:** Loki `{service_name="product-catalog"} |= "TESTING_FLAG"` (the error log message),
+  and/or Tempo `{ resource.service.name = "product-catalog" && status = error }` /
+  `{ span.app.catalog.incident_ref != "" }`.
+- **Hint ladder:** 1) "Products are failing to load." 2) "Check product-catalog **error logs** or
+  **error traces**." 3) "Read the error log message / the errored span's `app.catalog.incident_ref`."
 
 ---
 

@@ -367,9 +367,13 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 
 	// GetProduct will fail on a specific product when feature flag is enabled
 	if p.checkProductFailure(ctx, req.Id) {
-		msg := "Error: Product Catalog Fail Feature Flag Enabled"
+		msg := "Error: product catalog datastore lookup failed for product " + req.Id
 		span.SetStatus(otelcodes.Error, msg)
+		span.SetAttributes(attribute.String("app.catalog.incident_ref", "TESTING_FLAG{catalog_fault_p4l9k}"))
 		span.AddEvent(msg)
+		logger.LogAttrs(ctx, slog.LevelError,
+			"product catalog lookup failed for "+req.Id+" - incident ref TESTING_FLAG{catalog_fault_p4l9k}",
+			slog.String("demo.product.id", req.Id))
 		return nil, status.Error(codes.Internal, msg)
 	}
 
