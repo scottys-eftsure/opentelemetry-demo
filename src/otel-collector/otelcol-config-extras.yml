@@ -142,6 +142,20 @@ processors:
           - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
           - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.15
 
+  # flagd EventStream is a long-lived gRPC subscription; its client spans end with an
+  # error status on normal stream cancel/reconnect, which inflates the span-metrics
+  # error ratio and trips KG ErrorRatioBreach across every service that talks to flagd.
+  # Reclassify these benign cases (the EventStream method, plus transient CANCELLED(1)/
+  # UNAVAILABLE(14) connection-cycle codes) to UNSET so they aren't counted as errors.
+  # Genuine flag-eval failures (any other status code) are left untouched.
+  transform/suppress_flagd_stream_noise:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(status.code, STATUS_CODE_UNSET) where status.code == STATUS_CODE_ERROR and attributes["rpc.service"] == "flagd.evaluation.v2.Service" and attributes["rpc.method"] == "EventStream"
+          - set(status.code, STATUS_CODE_UNSET) where status.code == STATUS_CODE_ERROR and attributes["rpc.service"] == "flagd.evaluation.v2.Service" and (attributes["rpc.grpc.status_code"] == 1 or attributes["rpc.grpc.status_code"] == 14)
+
 exporters:
   otlphttp/grafana_cloud:
     # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
@@ -170,7 +184,7 @@ service:
   pipelines:
     traces:
       # Add host ID first, then apply resource detection and other processors; batch last before export
-      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen, batch]
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_spans, transform/suppress_flagd_stream_noise, filter/drop_loadgen, batch]
       exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
       # Add host ID first, then resource detection; stamp asserts/service labels after
