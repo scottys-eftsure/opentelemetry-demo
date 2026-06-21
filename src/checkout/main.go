@@ -559,6 +559,9 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		badAddress := "badAddress:50051"
 		c := mustCreateClient(badAddress)
 		paymentService = pb.NewPaymentServiceClient(c)
+		trace.SpanFromContext(ctx).SetAttributes(
+			attribute.String("app.payment.incident_ref", "TESTING_FLAG{payment_offline_z3x7c}"),
+		)
 	}
 
 	paymentResp, err := paymentService.Charge(ctx, &pb.ChargeRequest{

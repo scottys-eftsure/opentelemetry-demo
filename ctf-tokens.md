@@ -24,8 +24,8 @@ invisible to log search by design.
 |---|------|--------------|--------|-------|--------|
 | 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `TESTING_FLAG{cart_readiness_dn41x}` | ✅ implemented + builds |
 | 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
-| 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | 🛠️ implemented — CPU thresholds need calibration |
-| 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ implemented |
+| 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
+| 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
 | 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ⏳ planned |
 | 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ⏳ planned |
 | 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ⏳ planned |
@@ -85,7 +85,7 @@ invisible to log search by design.
 ## #3 — `adHighCpu` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{ad_cpu_thermal_q9w3e}`
-- **Status:** 🛠️ implemented (collector rule + 4-core cap); confirm JVM saturation under load on the remote.
+- **Status:** ✅ verified on remote — with the 2-core cap, `jvm_cpu_recent_utilization_ratio` saturates and the token stamps.
 - **Make-it-look-real:** ad is **CPU-capped to 2 cores** in `compose.extras.yaml`
   (`cpus: "2"`). docker reports `container_cpu_utilization_ratio` against the *host's* ~70 cores, so
   the busy threads barely register there — but the JVM is cgroup-aware, so the 4 CPULoad threads
@@ -107,7 +107,7 @@ invisible to log search by design.
 ## #4 — `emailMemoryLeak` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{email_heap_creep_v5t8r}`
-- **Status:** ✅ implemented (collector rule).
+- **Status:** ✅ verified on remote — token stamped on both `container_memory_percent_ratio` and `container_memory_usage_total_bytes` for email once past threshold.
 - **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
   metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale**:
   - `container.memory.percent` (→ `container_memory_percent_ratio`), `service.name="email"`,
@@ -122,15 +122,17 @@ invisible to log search by design.
 
 ---
 
-## #5 — `paymentUnreachable` 🟡 Trace  *(planned)*
+## #5 — `paymentUnreachable` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{payment_offline_z3x7c}`
-- **Where:** `src/checkout/main.go` ~558 — span attribute on the PlaceOrder span when the flag points
-  payment at the bad address.
-- **Find it (Tempo/TraceQL):** errored checkout spans, e.g.
-  `{ resource.service.name = "checkout" && status = error }` → read span attributes.
+- **Status:** 🛠️ implemented, checkout image builds; verify on remote.
+- **Where:** `src/checkout/main.go` `chargeCard()` (~558) — when the flag points payment at
+  `badAddress:50051`, set span attribute `app.payment.incident_ref` on the active span (the
+  PlaceOrder span, which errors when the Charge call fails).
+- **Find it (Tempo/TraceQL):** `{ resource.service.name = "checkout" && status = error }` → read the
+  failing span's attributes, or directly `{ span.app.payment.incident_ref != "" }`.
 - **Hint ladder:** 1) "Checkouts are failing." 2) "**Trace** a failed checkout." 3) "Read the
-  attributes on the failing payment span."
+  attributes on the failing payment/PlaceOrder span (`app.payment.incident_ref`)."
 
 ---
 
