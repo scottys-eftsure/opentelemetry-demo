@@ -36,7 +36,11 @@ if (string.IsNullOrEmpty(valkeyAddress))
 }
 
 builder.Logging
-    .AddOpenTelemetry(options => options.AddOtlpExporter())
+    .AddOpenTelemetry(options =>
+    {
+        options.IncludeFormattedMessage = true;
+        options.AddOtlpExporter();
+    })
     .AddConsole();
 
 builder.Services.AddSingleton<ICartStore>(x =>

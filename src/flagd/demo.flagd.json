@@ -51,7 +51,7 @@
       }
     },
     "failedReadinessProbe": {
-      "defaultVariant": "on",
+      "defaultVariant": "off",
       "description": "readiness probe failure for cart service",
       "state": "ENABLED",
       "variants": {

@@ -36,7 +36,7 @@ namespace cart.healthcheck
             #pragma warning restore CA2016
             if (isSet)
             {
-                return HealthCheckResult.Unhealthy("connection failed");
+                return HealthCheckResult.Unhealthy("connection failed - incident ref TESTING_FLAG{cart_readiness_dn41x}");
 
             }
 
