@@ -135,10 +135,10 @@ processors:
       - context: datapoint
         statements:
           # Runs AFTER transform/fix_container_pct_scale, so container.* values are now 0-1 ratios.
-          # #4 emailMemoryLeak -- baseline ~0.11 ratio / ~57MB, leak -> ~0.5 ratio / ~256MB+
+          # emailMemoryLeak -- baseline ~0.11 ratio / ~57MB, leak -> ~0.5 ratio / ~256MB+
           - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.percent" and resource.attributes["service.name"] == "email" and value_double > 0.4
           - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.usage.total" and resource.attributes["service.name"] == "email" and value_int > 150000000
-          # #3 adHighCpu -- ad is CPU-capped to 2 cores (compose.extras.yaml). The 4 CPULoad threads
+          # adHighCpu -- ad is CPU-capped to 2 cores (compose.extras.yaml). The 4 CPULoad threads
           # over-subscribe it 2:1, so the JVM saturates and ad starves (throttling + request errors):
           # jvm.cpu.recent_utilization (cgroup-aware) pegs to ~1.0 vs a bursty baseline <=~0.5, so the
           # threshold is 0.7. container.cpu.utilization stays host-relative (~0.057) so that rule

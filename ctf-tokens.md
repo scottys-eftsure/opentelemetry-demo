@@ -12,7 +12,7 @@ namespace `ctf`). Demo runs via `make start-minimal-no-o11y`. Tokens are **stati
 challenge, identical for all players**, submitted privately to the facilitator.
 
 Difficulty comes from *which signal you check* and *intermittency*, not obfuscation. Only the
-log challenges (#1, #2, #7) are findable by a Loki free-text search; metric/trace tokens are
+log challenges (#1, #2, #3) are findable by a Loki free-text search; metric/trace tokens are
 invisible to log search by design.
 
 > **Collector side-fix:** `transform/fix_container_pct_scale` divides `container.memory.percent`
@@ -23,12 +23,12 @@ invisible to log search by design.
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
 | 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `TESTING_FLAG{cart_readiness_dn41x}` | ✅ implemented + builds |
-| 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
-| 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
-| 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
-| 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
-| 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
-| 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | 🛠️ implemented + builds; verify on remote |
+| 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ✅ verified (log + trace) |
+| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
+| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
+| 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
+| 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
+| 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
 | 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ⏳ planned |
 
 ---
@@ -59,7 +59,27 @@ invisible to log search by design.
 
 ---
 
-## #2 — `adManualGc` 🟢 Log
+## #2 — `productCatalogFailure` 🟢 Log + Trace
+
+- **Token:** `TESTING_FLAG{catalog_fault_p4l9k}`
+- **Status:** ✅ verified on remote — token in both the error log and the errored span.
+- **Where:** `src/product-catalog/main.go` `GetProduct` failure branch — reworded the giveaway message
+  to a realistic datastore error, set `app.catalog.incident_ref` span attribute (+ `status=error` +
+  event), and added an `slog.LevelError` log whose **message** contains the token.
+- **Flag note:** targeting rule removed in `demo.flagd.json` — now a plain on/off flag (defaults
+  `off`). Toggling it **on** fails **all** product lookups (storefront-wide outage; cascades into
+  cart/checkout while on) — turn on only for this challenge.
+- **Find it:** Loki `{service_name="product-catalog"} |= "TESTING_FLAG"` (the error log message),
+  and/or Tempo `{ resource.service.name = "product-catalog" && status = error }` /
+  `{ span.app.catalog.incident_ref != "" }`.
+- **Why Easy:** with both error logs *and* errored traces lighting up, it's very obvious — a good
+  early confidence-builder that teaches both Loki and Tempo.
+- **Hint ladder:** 1) "Products are failing to load." 2) "Check product-catalog **error logs** or
+  **error traces**." 3) "Read the error log message / the errored span's `app.catalog.incident_ref`."
+
+---
+
+## #3 — `adManualGc` 🟢 Log
 
 - **Token:** `TESTING_FLAG{ad_gc_pause_7k2pm}`
 - **Status:** ✅ implemented, ad image builds.
@@ -82,7 +102,7 @@ invisible to log search by design.
 
 ---
 
-## #3 — `adHighCpu` 🟡 Metric (collector threshold)
+## #4 — `adHighCpu` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{ad_cpu_thermal_q9w3e}`
 - **Status:** ✅ verified on remote — with the 2-core cap, `jvm_cpu_recent_utilization_ratio` saturates and the token stamps.
@@ -104,7 +124,7 @@ invisible to log search by design.
 
 ---
 
-## #4 — `emailMemoryLeak` 🟡 Metric (collector threshold)
+## #5 — `emailMemoryLeak` 🟡 Metric (collector threshold)
 
 - **Token:** `TESTING_FLAG{email_heap_creep_v5t8r}`
 - **Status:** ✅ verified on remote — token stamped on both `container_memory_percent_ratio` and `container_memory_usage_total_bytes` for email once past threshold.
@@ -114,6 +134,8 @@ invisible to log search by design.
     `value_double > 0.4` (baseline ~0.11 ratio, leak → ~0.5+).
   - `container.memory.usage.total` (→ `container_memory_usage_total_bytes`), `service.name="email"`,
     `value_int > 150000000` (baseline ~57 MB, leak → ~256 MB).
+- **Note:** at a high leak multiplier email nears its 512 MB limit and OOM-restarts (token briefly
+  gone after each restart, then reappears). Use a lower multiplier to keep it dwelling in the leaked state.
 - **Find it (PromQL):** `container_memory_percent_ratio{service_name="email"}` or
   `container_memory_usage_total_bytes{service_name="email"}` → inspect labels for `incident_token`.
   Appears only above threshold (once the leak is severe).
@@ -122,7 +144,7 @@ invisible to log search by design.
 
 ---
 
-## #5 — `paymentUnreachable` 🟡 Trace
+## #6 — `paymentUnreachable` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{payment_offline_z3x7c}`
 - **Status:** ✅ verified on remote — token on the dedicated errored `charge` span.
@@ -139,7 +161,7 @@ invisible to log search by design.
 
 ---
 
-## #6 — `recommendationCacheFailure` 🟡 Trace
+## #7 — `recommendationCacheFailure` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{reco_cache_bloat_m6n2b}`
 - **Status:** ✅ verified on remote — token on cache-miss `get_product_list` spans.
@@ -153,24 +175,6 @@ invisible to log search by design.
   `demo.product.count`).
 - **Hint ladder:** 1) "Recommendations are slow / memory is creeping up." 2) "**Trace** a
   recommendation request (`get_product_list`)." 3) "Find the cache-miss span and read its attributes."
-
----
-
-## #7 — `productCatalogFailure` 🔴 Log + Trace
-
-- **Token:** `TESTING_FLAG{catalog_fault_p4l9k}`
-- **Status:** 🛠️ implemented, product-catalog image builds; verify on remote.
-- **Where:** `src/product-catalog/main.go` `GetProduct` failure branch — reworded the giveaway message
-  to a realistic datastore error, set `app.catalog.incident_ref` span attribute (+ `status=error` +
-  event), and added an `slog.LevelError` log whose **message** contains the token.
-- **Flag note:** targeting rule removed in `demo.flagd.json` — now a plain on/off flag (defaults
-  `off`). Toggling it **on** fails **all** product lookups (storefront-wide outage; cascades into
-  cart/checkout while on) — turn on only for this challenge.
-- **Find it:** Loki `{service_name="product-catalog"} |= "TESTING_FLAG"` (the error log message),
-  and/or Tempo `{ resource.service.name = "product-catalog" && status = error }` /
-  `{ span.app.catalog.incident_ref != "" }`.
-- **Hint ladder:** 1) "Products are failing to load." 2) "Check product-catalog **error logs** or
-  **error traces**." 3) "Read the error log message / the errored span's `app.catalog.incident_ref`."
 
 ---
 
