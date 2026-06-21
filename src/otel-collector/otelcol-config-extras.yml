@@ -29,25 +29,55 @@ extensions:
 
 processors:
   # Add static Grafana host ID to all telemetry resources
-  # Required for Grafana Application Observability
+  # Required for Grafana Application Observability.
+  # Also hard-overrides the namespace to "ctf" on every signal, and attributes
+  # docker_stats container metrics to a service instance (see metric_statements).
   transform/add_host_id:
     error_mode: ignore
     trace_statements:
       - context: resource
         statements:
           - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+          # Hard-override the namespace for all telemetry
+          - set(resource.attributes["service.namespace"], "ctf")
     metric_statements:
       - context: resource
         statements:
           - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+          # Attribute docker_stats container metrics to a service instance so their
+          # full resource set (CPU, memory, network, block I/O) rolls up under a
+          # ServiceInstance in the Knowledge Graph. Identified by having a
+          # container.name but no service.name yet. The instance id is the unique
+          # per-container container.id GUID.
+          - set(resource.attributes["service.name"], resource.attributes["container.name"]) where resource.attributes["service.name"] == nil and resource.attributes["container.name"] != nil
+          - set(resource.attributes["service"], resource.attributes["service.name"]) where resource.attributes["service"] == nil and resource.attributes["service.name"] != nil
+
+          - set(resource.attributes["service.instance.id"], resource.attributes["container.id"]) where resource.attributes["service.instance.id"] == nil and resource.attributes["container.id"] != nil
+          # Hard-override the namespace for all telemetry
+          - set(resource.attributes["service.namespace"], "ctf")
+          
+          - set(resource.attributes["namespace"], "ctf")
     log_statements:
       - context: resource
         statements:
           - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+          # Hard-override the namespace for all telemetry
+          - set(resource.attributes["service.namespace"], "ctf")
     profile_statements:
       - context: resource
         statements:
           - set(resource.attributes["grafana.host.id"], "a7f8e4c2-3d1b-4a5c-9f2e-6b8d7c4a1e9f") where resource.attributes["grafana.host.id"] == nil
+          # Hard-override the namespace for all telemetry
+          - set(resource.attributes["service.namespace"], "ctf")
+
+  # Batch telemetry before export to Grafana Cloud. Without this the trace
+  # pipeline sends many tiny requests; under load (and with EU-endpoint latency)
+  # the exporter queue backs up and drops spans. Batching cuts request count and
+  # lets the queue drain. memory_limiter must run before batch (see pipelines).
+  batch:
+    send_batch_size: 8192
+    send_batch_max_size: 16384
+    timeout: 2s
 
   # Filter to drop ALL load-generator telemetry before sending to Grafana Cloud
   # Used for CTF exercises to prevent load-generator noise from muddying investigation data
@@ -62,12 +92,40 @@ processors:
     profile_conditions:
       - resource.attributes["service.name"] == "load-generator"
 
+  # Stamp the labels Grafana's entity Metrics view filters on (service, namespace,
+  # asserts_env, asserts_site) as DATAPOINT attributes. OTLP->Prometheus promotes
+  # datapoint attributes to per-series labels, whereas resource attributes only land
+  # on target_info -- so these must be datapoint-level to appear on each metric.
+  # This runs at the END of the metrics pipeline (after resourcedetection), so
+  # deployment.environment.name and cloud.region are already on the resource and
+  # asserts_env/asserts_site can be read dynamically rather than hard-coded.
+  transform/asserts_labels:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["service"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil
+          - set(attributes["namespace"], resource.attributes["service.namespace"]) where resource.attributes["service.namespace"] != nil
+          - set(attributes["asserts_env"], resource.attributes["deployment.environment.name"]) where resource.attributes["deployment.environment.name"] != nil
+          - set(attributes["asserts_site"], resource.attributes["cloud.region"]) where resource.attributes["cloud.region"] != nil
+
 exporters:
   otlphttp/grafana_cloud:
     # https://github.com/open-telemetry/opentelemetry-collector/tree/main/exporter/otlphttpexporter
     endpoint: "${env:GRAFANA_CLOUD_OTLP_ENDPOINT}"
     auth:
       authenticator: basicauth/grafana_cloud
+    # Larger queue + more parallel senders so a transient gateway 502 or the
+    # round-trip latency to the EU endpoint doesn't fill the queue and drop data.
+    sending_queue:
+      enabled: true
+      num_consumers: 20
+      queue_size: 20000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 120s
 
 connectors:
   grafanacloud:
@@ -78,18 +136,20 @@ service:
   extensions: [basicauth/grafana_cloud]
   pipelines:
     traces:
-      # Add host ID first, then apply resource detection and other processors
-      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen]
+      # Add host ID first, then apply resource detection and other processors; batch last before export
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_spans, filter/drop_loadgen, batch]
       exporters: [debug, span_metrics, otlphttp/grafana_cloud]
     metrics:
-      # Add host ID first, then apply resource detection and other processors
-      processors: [transform/add_host_id, resourcedetection, memory_limiter, filter/drop_loadgen]
+      # Add host ID first, then resource detection; stamp asserts/service labels after
+      # detection (so env/region are present), then batch last before export.
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, filter/drop_loadgen, transform/asserts_labels, batch]
       exporters: [debug, otlphttp/grafana_cloud]
     logs:
-      # Add host ID first, then apply resource detection and other processors
-      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_logs, filter/drop_loadgen]
+      # Add host ID first, then apply resource detection and other processors; batch last before export
+      processors: [transform/add_host_id, resourcedetection, memory_limiter, transform/sanitize_logs, filter/drop_loadgen, batch]
       exporters: [debug, otlphttp/grafana_cloud]
     profiles:
-      # Add host ID first, then apply other processors
+      # Add host ID first, then apply other processors.
+      # Note: the batch processor does not support the profiles signal, so it is omitted here.
       processors: [transform/add_host_id, filter/sanitize_profiles, memory_limiter, filter/drop_loadgen]
       exporters: [debug, otlphttp/grafana_cloud]

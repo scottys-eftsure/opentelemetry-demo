@@ -922,4 +922,4 @@ services:
       - GRAFANA_CLOUD_OTLP_ENDPOINT
       - GRAFANA_CLOUD_INSTANCE_ID
       - GRAFANA_CLOUD_API_KEY
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=local,cloud.region=ap-southeast-2
+      - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES}
