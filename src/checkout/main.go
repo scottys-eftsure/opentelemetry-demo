@@ -563,7 +563,7 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		c := mustCreateClient(badAddress)
 		paymentService = pb.NewPaymentServiceClient(c)
 		span.SetAttributes(
-			attribute.String("app.payment.incident_ref", "TESTING_FLAG{payment_offline_z3x7c}"),
+			attribute.String("incident_ref", "TESTING_FLAG{payment_offline_z3x7c}"),
 		)
 	}
 

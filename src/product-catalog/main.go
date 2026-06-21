@@ -369,7 +369,7 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	if p.checkProductFailure(ctx, req.Id) {
 		msg := "Error: product catalog datastore lookup failed for product " + req.Id
 		span.SetStatus(otelcodes.Error, msg)
-		span.SetAttributes(attribute.String("app.catalog.incident_ref", "TESTING_FLAG{catalog_fault_p4l9k}"))
+		span.SetAttributes(attribute.String("incident_ref", "TESTING_FLAG{catalog_fault_p4l9k}"))
 		span.AddEvent(msg)
 		logger.LogAttrs(ctx, slog.LevelError,
 			"product catalog lookup failed for "+req.Id+" - incident ref TESTING_FLAG{catalog_fault_p4l9k}",

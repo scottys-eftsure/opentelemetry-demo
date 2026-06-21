@@ -122,7 +122,7 @@ processors:
           - set(value_double, value_double / 100) where metric.name == "container.memory.percent"
           - set(value_double, value_double / 100) where metric.name == "container.cpu.utilization"
 
-  # CTF metric challenges: stamp an `incident_token` datapoint attribute (promoted to a
+  # CTF metric challenges: stamp an `incident_ref` datapoint attribute (promoted to a
   # per-series Prometheus label) onto a service's resource metrics when they cross a severity
   # threshold -- i.e. the token only appears once the symptom is bad enough, like an alert firing.
   # NOTE: names here are the in-pipeline OTel (dotted) names, NOT the Prometheus names you see in
@@ -136,15 +136,15 @@ processors:
         statements:
           # Runs AFTER transform/fix_container_pct_scale, so container.* values are now 0-1 ratios.
           # emailMemoryLeak -- baseline ~0.11 ratio / ~57MB, leak -> ~0.5 ratio / ~256MB+
-          - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.percent" and resource.attributes["service.name"] == "email" and value_double > 0.4
-          - set(attributes["incident_token"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.usage.total" and resource.attributes["service.name"] == "email" and value_int > 150000000
+          - set(attributes["incident_ref"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.percent" and resource.attributes["service.name"] == "email" and value_double > 0.4
+          - set(attributes["incident_ref"], "TESTING_FLAG{email_heap_creep_v5t8r}") where metric.name == "container.memory.usage.total" and resource.attributes["service.name"] == "email" and value_int > 150000000
           # adHighCpu -- ad is CPU-capped to 2 cores (compose.extras.yaml). The 4 CPULoad threads
           # over-subscribe it 2:1, so the JVM saturates and ad starves (throttling + request errors):
           # jvm.cpu.recent_utilization (cgroup-aware) pegs to ~1.0 vs a bursty baseline <=~0.5, so the
           # threshold is 0.7. container.cpu.utilization stays host-relative (~0.057) so that rule
           # rarely fires -- kept as best-effort redundancy; the JVM gauge is the real signal.
-          - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.7
-          - set(attributes["incident_token"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
+          - set(attributes["incident_ref"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.7
+          - set(attributes["incident_ref"], "TESTING_FLAG{ad_cpu_thermal_q9w3e}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
 
   # flagd EventStream is a long-lived gRPC subscription; its client spans end with an
   # error status on normal stream cancel/reconnect, which inflates the span-metrics
