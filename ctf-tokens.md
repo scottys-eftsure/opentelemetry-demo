@@ -33,7 +33,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 | 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
 | 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
 | 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
-| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ⏳ planned |
+| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | 🛠️ implemented + builds; verify on remote |
 
 ---
 
@@ -182,12 +182,19 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ---
 
-## #8 — `paymentFailure` 🔴 Trace (intermittent)  *(planned)*
+## #8 — `paymentFailure` 🔴 Trace (intermittent)
 
 - **Token:** `TESTING_FLAG{charge_declined_h8j5g}`
-- **Where:** `src/payment/charge.js` ~30-39 — span attribute set on the failing charge span (the
-  ~n% that throw).
-- **Find it (Tempo/TraceQL):** `{ resource.service.name = "payment" && status = error }` → read span
-  attributes. Hard because only the failing fraction carry it — don't trust the first trace.
+- **Status:** 🛠️ implemented, payment image builds; verify on remote.
+- **Where:** `src/payment/charge.js` — on the failing branch (`Math.random() < paymentFailure`), set
+  `incident_ref` on the payment `charge` span before it throws; the existing catch records the
+  exception and `status=error`.
+- **Intermittent:** only the failing fraction carry the token — set the flag to a percentage (e.g.
+  `25%`/`50%`); the bigger the %, the more failing spans, the easier the hunt.
+- **Find it (Tempo/TraceQL):** `{ resource.service.name = "payment" && status = error }` →
+  read the errored charge span's attributes, or `{ resource.service.name = "payment" && span.incident_ref != "" }`.
+- **Note:** the **payment** service and the **checkout** service both have a span named `charge`
+  (checkout's is challenge #6, paymentUnreachable). Scope by `resource.service.name = "payment"` to
+  isolate this one.
 - **Hint ladder:** 1) "Some payments fail, some succeed." 2) "Filter payment traces to **errors
-  only**." 3) "Read attributes across several failing spans."
+  only**." 3) "Read `incident_ref` across several failing charge spans (don't trust the first trace)."
