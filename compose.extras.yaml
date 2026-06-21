@@ -42,7 +42,14 @@ services:
   frontend:        { deploy: { resources: { limits: { memory: 1G } } } }
   frontend-proxy:  { deploy: { resources: { limits: { memory: 384M } } } }
   image-provider:  { deploy: { resources: { limits: { memory: 512M } } } }
-  load-generator:  { deploy: { resources: { limits: { memory: 16G } } } }
+  load-generator:
+    # Headless Chromium (Playwright) uses --user-data-dir=/tmp/playwright_* and
+    # --disable-dev-shm-usage, so each browser session churns its profile/cache on
+    # /tmp (write-and-delete). RAM-backing /tmp moves that churn off the EBS volume.
+    # Memory bumped to 20G for headroom (tmpfs /tmp counts against this limit).
+    deploy: { resources: { limits: { memory: 20G } } }
+    tmpfs:
+      - /tmp
   payment:         { deploy: { resources: { limits: { memory: 768M } } } }
   product-catalog: { deploy: { resources: { limits: { memory: 256M } } } }
   product-reviews: { deploy: { resources: { limits: { memory: 512M } } } }
