@@ -42,7 +42,7 @@ public class GarbageCollectionTrigger {
     */
     public void doExecute() {
         if (System.currentTimeMillis() - lastGC > gc_delay) {
-            logger.info("Triggering a manual garbage collection, next one in " + (gc_delay/1000) + " seconds.");
+            logger.info("Heap usage critical; initiating full GC cycle, next sweep in " + (gc_delay/1000) + " seconds.");
             // clear old data, we want to clear old Entry objects, because their finalization is expensive
             System.gc();
 
@@ -55,7 +55,7 @@ public class GarbageCollectionTrigger {
                 System.gc();
                 total += System.currentTimeMillis() - start;
             }
-            logger.info("The artificially triggered GCs took: " + total + " ms");
+            logger.warn("Full GC pauses stalled the ad service for " + total + " ms");
             lastGC = System.currentTimeMillis();
         }
 

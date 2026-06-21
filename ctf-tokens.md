@@ -18,7 +18,7 @@ invisible to log search by design.
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
 | 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `TESTING_FLAG{cart_readiness_dn41x}` | ✅ implemented + builds |
-| 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ⏳ planned |
+| 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
 | 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ⏳ planned |
 | 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ⏳ planned |
 | 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ⏳ planned |
@@ -54,16 +54,26 @@ invisible to log search by design.
 
 ---
 
-## #2 — `adManualGc` 🟢 Log  *(planned)*
+## #2 — `adManualGc` 🟢 Log
 
 - **Token:** `TESTING_FLAG{ad_gc_pause_7k2pm}`
-- **Service / file:** ad (Java) — `src/ad/src/main/java/oteldemo/AdService.java` ~243, the existing
-  `logger.warn("Feature Flag ... performing a manual gc now")`.
-- **Plan:** append the token to that existing warn log (pedagogical Loki warm-up; real GC signal is
-  JVM metrics, noted in plan).
-- **Find it (Loki):** `{service_name="ad"} |= "TESTING_FLAG"`
-- **Hint ladder:** 1) "Something is forcing garbage collection in a service." 2) "Check the **ad**
-  service logs." 3) "Search ad logs for `TESTING_FLAG`."
+- **Status:** ✅ implemented, ad image builds.
+- **Service / files:** ad (Java) — `src/ad/src/main/java/oteldemo/AdService.java` ~243 (token in the
+  WARN) and `src/ad/src/main/java/oteldemo/problempattern/GarbageCollectionTrigger.java` (lines 45, 58).
+- **Failure:** ad service forces repeated full GCs → heap pressure / latency spikes.
+- **Disguise:** the three logs were reworded to drop the giveaways ("Feature Flag adManualGc enabled",
+  "manual garbage collection", "artificially triggered") so they read like a genuine heap-pressure
+  incident:
+  - `AdService`: "High heap pressure detected in ad service; forcing a full GC to reclaim memory,
+    response latency may spike. ref=TESTING_FLAG{ad_gc_pause_7k2pm}"
+  - `GarbageCollectionTrigger`: "Heap usage critical; initiating full GC cycle, next sweep in 10s."
+  - `GarbageCollectionTrigger` (now WARN): "Full GC pauses stalled the ad service for N ms"
+- **Where the token lives:** the lead `AdService` WARN log body.
+- **Find it (Loki):** `{service_name="ad"} |= "TESTING_FLAG"` (or browse ad WARN logs for the heap-pressure messages).
+- **Hint ladder:**
+  1. "A service is suffering heap pressure / GC pauses — which one?"
+  2. "Check the **ad** service WARN logs."
+  3. "Search ad logs for `TESTING_FLAG`."
 
 ---
 
