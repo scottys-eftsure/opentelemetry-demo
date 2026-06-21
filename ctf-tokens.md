@@ -26,8 +26,8 @@ invisible to log search by design.
 | 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
 | 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
 | 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
-| 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | 🛠️ revised — token moved to dedicated `charge` span; re-verify |
-| 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ⏳ planned |
+| 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
+| 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | 🛠️ implemented + builds; verify on remote |
 | 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ⏳ planned |
 | 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ⏳ planned |
 
@@ -125,8 +125,7 @@ invisible to log search by design.
 ## #5 — `paymentUnreachable` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{payment_offline_z3x7c}`
-- **Status:** 🛠️ revised — token now on a dedicated errored `charge` span (was on the parent
-  PlaceOrder server span, which was unintuitive to find); rebuilt, re-verify on remote.
+- **Status:** ✅ verified on remote — token on the dedicated errored `charge` span.
 - **Where:** `src/checkout/main.go` `chargeCard()` — wraps the charge in its own `charge` span; when
   the flag points payment at `badAddress:50051`, sets `app.payment.incident_ref` on that span and
   records the error/`status=error` when the Charge RPC fails. So the failing payment step is a
@@ -140,15 +139,20 @@ invisible to log search by design.
 
 ---
 
-## #6 — `recommendationCacheFailure` 🟡 Trace  *(planned)*
+## #6 — `recommendationCacheFailure` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{reco_cache_bloat_m6n2b}`
-- **Where:** `src/recommendation/recommendation_server.py` ~79-94 — span attribute on the cache-miss
-  branch (`demo.recommendation.cache_hit=false`).
-- **Find it (Tempo/TraceQL):** recommendation spans with `demo.recommendation.cache_hit = false` →
-  read attributes.
-- **Hint ladder:** 1) "Recommendations are slow / memory is growing." 2) "**Trace** a recommendation
-  request." 3) "Find the span where the cache misses and read its attributes."
+- **Status:** 🛠️ implemented, recommendation image builds; verify on remote.
+- **Where:** `src/recommendation/recommendation_server.py` — in `get_product_list`, on the
+  **cache-miss branch** (the path that bloats `cached_ids`), set `app.cache.incident_ref` on the
+  `get_product_list` span alongside `demo.recommendation.cache_hit=false`.
+- **Intermittent:** the miss branch fires ~50% of the time (and always on first run) while the flag
+  is on, so plenty of spans carry it under steady traffic — but not every single one.
+- **Find it (Tempo/TraceQL):** `{ span.app.cache.incident_ref != "" }`, or browse recommendation
+  `get_product_list` spans with `demo.recommendation.cache_hit = false` (+ a ballooning
+  `demo.product.count`).
+- **Hint ladder:** 1) "Recommendations are slow / memory is creeping up." 2) "**Trace** a
+  recommendation request (`get_product_list`)." 3) "Find the cache-miss span and read its attributes."
 
 ---
 
