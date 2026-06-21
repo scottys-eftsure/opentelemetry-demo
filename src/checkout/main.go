@@ -554,12 +554,15 @@ func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurre
 }
 
 func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
+	ctx, span := tracer.Start(ctx, "charge")
+	defer span.End()
+
 	paymentService := cs.paymentSvcClient
 	if flags.PaymentUnreachable.Value(ctx, openfeature.EvaluationContext{}) {
 		badAddress := "badAddress:50051"
 		c := mustCreateClient(badAddress)
 		paymentService = pb.NewPaymentServiceClient(c)
-		trace.SpanFromContext(ctx).SetAttributes(
+		span.SetAttributes(
 			attribute.String("app.payment.incident_ref", "TESTING_FLAG{payment_offline_z3x7c}"),
 		)
 	}
@@ -569,6 +572,8 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		CreditCard: paymentInfo,
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
 		return "", fmt.Errorf("could not charge the card: %+v", err)
 	}
 	return paymentResp.GetTransactionId(), nil

@@ -26,7 +26,7 @@ invisible to log search by design.
 | 2 | 🟢 Easy | `adManualGc` | Log (ad) | `TESTING_FLAG{ad_gc_pause_7k2pm}` | ✅ implemented + builds |
 | 3 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `TESTING_FLAG{ad_cpu_thermal_q9w3e}` | ✅ verified (JVM saturates under 2-core cap) |
 | 4 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
-| 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ⏳ planned |
+| 5 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | 🛠️ revised — token moved to dedicated `charge` span; re-verify |
 | 6 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ⏳ planned |
 | 7 | 🔴 Hard | `productCatalogFailure` | Log + Trace (product-catalog) | `TESTING_FLAG{catalog_fault_p4l9k}` | ⏳ planned |
 | 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ⏳ planned |
@@ -125,14 +125,18 @@ invisible to log search by design.
 ## #5 — `paymentUnreachable` 🟡 Trace
 
 - **Token:** `TESTING_FLAG{payment_offline_z3x7c}`
-- **Status:** 🛠️ implemented, checkout image builds; verify on remote.
-- **Where:** `src/checkout/main.go` `chargeCard()` (~558) — when the flag points payment at
-  `badAddress:50051`, set span attribute `app.payment.incident_ref` on the active span (the
-  PlaceOrder span, which errors when the Charge call fails).
-- **Find it (Tempo/TraceQL):** `{ resource.service.name = "checkout" && status = error }` → read the
-  failing span's attributes, or directly `{ span.app.payment.incident_ref != "" }`.
-- **Hint ladder:** 1) "Checkouts are failing." 2) "**Trace** a failed checkout." 3) "Read the
-  attributes on the failing payment/PlaceOrder span (`app.payment.incident_ref`)."
+- **Status:** 🛠️ revised — token now on a dedicated errored `charge` span (was on the parent
+  PlaceOrder server span, which was unintuitive to find); rebuilt, re-verify on remote.
+- **Where:** `src/checkout/main.go` `chargeCard()` — wraps the charge in its own `charge` span; when
+  the flag points payment at `badAddress:50051`, sets `app.payment.incident_ref` on that span and
+  records the error/`status=error` when the Charge RPC fails. So the failing payment step is a
+  clearly-named, red span carrying the token.
+- **Find it (Tempo/TraceQL):** `{ name = "charge" && status = error }` or
+  `{ span.app.payment.incident_ref != "" }` → read the `charge` span's attributes.
+- **Note:** don't be misled by email `EOF` errors in checkout traces — those are unrelated email
+  flakiness; the payment-unreachable failure is the `charge` span.
+- **Hint ladder:** 1) "Checkouts are failing." 2) "**Trace** a failed checkout, find the payment
+  step." 3) "Read the attributes on the errored `charge` span (`app.payment.incident_ref`)."
 
 ---
 
