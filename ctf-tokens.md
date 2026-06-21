@@ -33,7 +33,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 | 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `TESTING_FLAG{email_heap_creep_v5t8r}` | ✅ verified (token on both email mem metrics) |
 | 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `TESTING_FLAG{payment_offline_z3x7c}` | ✅ verified (token on errored `charge` span) |
 | 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `TESTING_FLAG{reco_cache_bloat_m6n2b}` | ✅ verified (token on cache-miss spans) |
-| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | 🛠️ implemented + builds; verify on remote |
+| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `TESTING_FLAG{charge_declined_h8j5g}` | ✅ verified (token on errored payment charge spans) |
 
 ---
 
@@ -185,7 +185,7 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 ## #8 — `paymentFailure` 🔴 Trace (intermittent)
 
 - **Token:** `TESTING_FLAG{charge_declined_h8j5g}`
-- **Status:** 🛠️ implemented, payment image builds; verify on remote.
+- **Status:** ✅ verified on remote — token on errored payment `charge` spans (`status=error`).
 - **Where:** `src/payment/charge.js` — on the failing branch (`Math.random() < paymentFailure`), set
   `incident_ref` on the payment `charge` span before it throws; the existing catch records the
   exception and `status=error`.
