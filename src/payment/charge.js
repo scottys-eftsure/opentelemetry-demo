@@ -33,7 +33,7 @@ module.exports.charge = async request => {
       // n% chance to fail with demo.user_context.loyalty_level=gold
       if (Math.random() < numberVariant) {
         span.setAttributes({'demo.user_context.loyalty_level': 'gold' });
-        span.setAttribute('txn.settlement_id', 'EFTSURE_FLAG{charge_declined_q6f2n}');
+        span.setAttribute('txn.settlement_id', 'EFTSURE_ZA_FLAG{charge_rejected_q9f5n}');
 
         throw new Error('Payment request failed. Invalid token. demo.user_context.loyalty_level=gold');
       }

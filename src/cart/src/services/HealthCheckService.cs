@@ -36,7 +36,7 @@ namespace cart.healthcheck
             #pragma warning restore CA2016
             if (isSet)
             {
-                return HealthCheckResult.Unhealthy("connection failed - incident ref EFTSURE_FLAG{cart_readiness_9t3kx}");
+                return HealthCheckResult.Unhealthy("connection failed - incident ref EFTSURE_ZA_FLAG{cart_health_p2k9d}");
 
             }
 

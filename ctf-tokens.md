@@ -32,14 +32,14 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
-| 1 | 🎓 **DEMO — not scored** | `failedReadinessProbe` | Log (cart) | `EFTSURE_FLAG{cart_readiness_9t3kx}` | ✅ used in the live walkthrough; **not** part of scoring |
-| 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `EFTSURE_FLAG{catalog_fault_r7m2w}` | ✅ verified (log + trace) |
-| 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `EFTSURE_FLAG{email_heap_creep_h2c7j}` | ✅ verified (token on both email mem metrics) |
-| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_FLAG{ad_gc_pause_b8x4q}` | ✅ implemented + builds |
-| 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `EFTSURE_FLAG{payment_offline_t4w9r}` | ✅ verified (token on errored `charge` span) |
-| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}` | ✅ verified (JVM saturates under 2-core cap) |
-| 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `EFTSURE_FLAG{reco_cache_bloat_k3z8m}` | ✅ verified (token on cache-miss spans) |
-| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `EFTSURE_FLAG{charge_declined_q6f2n}` | ✅ verified (token on errored payment charge spans) |
+| 1 | 🎓 **DEMO — not scored** | `failedReadinessProbe` | Log (cart) | `EFTSURE_ZA_FLAG{cart_health_p2k9d}` | ✅ used in the live walkthrough; **not** part of scoring |
+| 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `EFTSURE_ZA_FLAG{catalog_outage_m4x7t}` | ✅ verified (log + trace) |
+| 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `EFTSURE_ZA_FLAG{email_mem_bloat_h7c4j}` | ✅ verified (token on both email mem metrics) |
+| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_ZA_FLAG{ad_gc_churn_w8b3q}` | ✅ implemented + builds |
+| 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `EFTSURE_ZA_FLAG{payment_down_z3t8r}` | ✅ verified (token on errored `charge` span) |
+| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_ZA_FLAG{ad_cpu_spike_r5n2v}` | ✅ verified (JVM saturates under 2-core cap) |
+| 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `EFTSURE_ZA_FLAG{reco_cache_leak_k6m2z}` | ✅ verified (token on cache-miss spans) |
+| 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `EFTSURE_ZA_FLAG{charge_rejected_q9f5n}` | ✅ verified (token on errored payment charge spans) |
 
 ---
 
@@ -47,7 +47,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 - **🎓 This is the live-demo flag, used in the facilitator walkthrough — it is NOT scored.** That
   leaves **#2–#8 (7 flags)** as the scored challenges.
-- **Token:** `EFTSURE_FLAG{cart_readiness_9t3kx}`
+- **Token:** `EFTSURE_ZA_FLAG{cart_health_p2k9d}`
 - **Status:** ✅ implemented, cart image builds.
 - **Service / files:** cart (C#) — `src/cart/src/services/HealthCheckService.cs` (token in the
   `HealthCheckResult.Unhealthy(...)` description) and `src/cart/src/Program.cs`
@@ -73,7 +73,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #2 — `productCatalogFailure` 🟢 Log + Trace
 
-- **Token:** `EFTSURE_FLAG{catalog_fault_r7m2w}`
+- **Token:** `EFTSURE_ZA_FLAG{catalog_outage_m4x7t}`
 - **Status:** ✅ verified on remote — token in both the error log and the errored span.
 - **Where:** `src/product-catalog/main.go` `GetProduct` failure branch — reworded the giveaway message
   to a realistic datastore error, set `incident_ref` span attribute (+ `status=error` +
@@ -93,7 +93,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #3 — `adManualGc` 🟢 Log
 
-- **Token:** `EFTSURE_FLAG{ad_gc_pause_b8x4q}`
+- **Token:** `EFTSURE_ZA_FLAG{ad_gc_churn_w8b3q}`
 - **Status:** ✅ implemented, ad image builds.
 - **Service / files:** ad (Java) — `src/ad/src/main/java/oteldemo/AdService.java` ~243 (token in the
   WARN) and `src/ad/src/main/java/oteldemo/problempattern/GarbageCollectionTrigger.java` (lines 45, 58).
@@ -102,7 +102,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
   "manual garbage collection", "artificially triggered") so they read like a genuine heap-pressure
   incident:
   - `AdService`: "High heap pressure detected in ad service; forcing a full GC to reclaim memory,
-    response latency may spike. ref=EFTSURE_FLAG{ad_gc_pause_b8x4q}"
+    response latency may spike. ref=EFTSURE_ZA_FLAG{ad_gc_churn_w8b3q}"
   - `GarbageCollectionTrigger`: "Heap usage critical; initiating full GC cycle, next sweep in 10s."
   - `GarbageCollectionTrigger` (now WARN): "Full GC pauses stalled the ad service for N ms"
 - **Where the token lives:** the lead `AdService` WARN log body.
@@ -116,7 +116,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #4 — `adHighCpu` 🟡 Metric (collector threshold)
 
-- **Token:** `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}`
+- **Token:** `EFTSURE_ZA_FLAG{ad_cpu_spike_r5n2v}`
 - **Status:** ✅ verified on remote — with the 2-core cap, `jvm_cpu_recent_utilization_ratio` saturates and the token stamps.
 - **Make-it-look-real:** ad is **CPU-capped to 2 cores** in `compose.extras.yaml`
   (`cpus: "2"`). docker reports `container_cpu_utilization_ratio` against the *host's* ~70 cores, so
@@ -138,7 +138,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #5 — `emailMemoryLeak` 🟡 Metric (collector threshold)
 
-- **Token:** `EFTSURE_FLAG{email_heap_creep_h2c7j}`
+- **Token:** `EFTSURE_ZA_FLAG{email_mem_bloat_h7c4j}`
 - **Status:** ✅ verified on remote — token stamped on both `container_memory_percent_ratio` and `container_memory_usage_total_bytes` for email once past threshold.
 - **Where:** `transform/ctf_metric_flags` in `src/otel-collector/otelcol-config-extras.yml`. Two
   metrics (redundancy), in-pipeline OTel names, thresholds on the **corrected 0-1 scale**:
@@ -158,7 +158,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #6 — `paymentUnreachable` 🟡 Trace
 
-- **Token:** `EFTSURE_FLAG{payment_offline_t4w9r}`
+- **Token:** `EFTSURE_ZA_FLAG{payment_down_z3t8r}`
 - **Status:** ✅ verified on remote — token on the dedicated errored `charge` span.
 - **Where:** `src/checkout/main.go` `chargeCard()` — wraps the charge in its own `charge` span; when
   the flag points payment at `badAddress:50051`, sets `incident_ref` on that span and
@@ -175,7 +175,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #7 — `recommendationCacheFailure` 🟡 Trace
 
-- **Token:** `EFTSURE_FLAG{reco_cache_bloat_k3z8m}`
+- **Token:** `EFTSURE_ZA_FLAG{reco_cache_leak_k6m2z}`
 - **Status:** ✅ verified on remote — token on cache-miss `get_product_list` spans.
 - **Where:** `src/recommendation/recommendation_server.py` — in `get_product_list`, on the
   **cache-miss branch** (the path that bloats `cached_ids`), set `cache.shard_ref` on the
@@ -192,7 +192,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 
 ## #8 — `paymentFailure` 🔴 Trace (intermittent)
 
-- **Token:** `EFTSURE_FLAG{charge_declined_q6f2n}`
+- **Token:** `EFTSURE_ZA_FLAG{charge_rejected_q9f5n}`
 - **Status:** ✅ verified on remote — token on errored payment `charge` spans (`status=error`).
 - **Where:** `src/payment/charge.js` — on the failing branch (`Math.random() < paymentFailure`), set
   `txn.settlement_id` on the payment `charge` span before it throws; the existing catch records the

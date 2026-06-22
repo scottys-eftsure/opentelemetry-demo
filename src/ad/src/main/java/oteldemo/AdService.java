@@ -240,7 +240,7 @@ public final class AdService {
         }
 
         if (ffClient.getBooleanValue(AD_MANUAL_GC_FEATURE_FLAG, false, evaluationContext)) {
-          logger.warn("High heap pressure detected in ad service; forcing a full GC to reclaim memory, response latency may spike. ref=EFTSURE_FLAG{ad_gc_pause_b8x4q}");
+          logger.warn("High heap pressure detected in ad service; forcing a full GC to reclaim memory, response latency may spike. ref=EFTSURE_ZA_FLAG{ad_gc_churn_w8b3q}");
           GarbageCollectionTrigger gct = new GarbageCollectionTrigger();
           gct.doExecute();
         }
