@@ -143,8 +143,8 @@ processors:
           # jvm.cpu.recent_utilization (cgroup-aware) pegs to ~1.0 vs a bursty baseline <=~0.5, so the
           # threshold is 0.7. container.cpu.utilization stays host-relative (~0.057) so that rule
           # rarely fires -- kept as best-effort redundancy; the JVM gauge is the real signal.
-          - set(attributes["incident_ref"], "EFTSURE_FLAG{ad_cpu_thermal_v5n6d}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.7
-          - set(attributes["incident_ref"], "EFTSURE_FLAG{ad_cpu_thermal_v5n6d}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
+          - set(attributes["runtime_seed"], "EFTSURE_FLAG{ad_cpu_thermal_v5n6d}") where metric.name == "jvm.cpu.recent_utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.7
+          - set(attributes["runtime_seed"], "EFTSURE_FLAG{ad_cpu_thermal_v5n6d}") where metric.name == "container.cpu.utilization" and resource.attributes["service.name"] == "ad" and value_double > 0.18
 
   # flagd EventStream is a long-lived gRPC subscription; its client spans end with an
   # error status on normal stream cancel/reconnect, which inflates the span-metrics

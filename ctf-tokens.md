@@ -15,9 +15,12 @@ Difficulty comes from *which signal you check* and *intermittency*, not obfuscat
 log challenges (#1, #2, #3) are findable by a Loki free-text search; metric/trace tokens are
 invisible to log search by design.
 
-**Unified key:** every non-log token is attached under the key **`incident_ref`** — a span
-attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }` (Tempo) or an
-`incident_ref` label filter (Mimir) surfaces whichever challenge's flag is currently on.
+**Token keys (vary per challenge):** non-log tokens are a span attribute (traces) or series label
+(metrics). The key **differs per challenge** so no single dashboard can sweep them all:
+- `incident_ref` — #2 productCatalogFailure, #5 emailMemoryLeak, #6 paymentUnreachable
+- `runtime_seed` — #4 adHighCpu (metric label)
+- `cache.shard_ref` — #7 recommendationCacheFailure (span attr)
+- `txn.settlement_id` — #8 paymentFailure (span attr)
 
 > **Collector side-fix:** `transform/fix_container_pct_scale` divides `container.memory.percent`
 > and `container.cpu.utilization` by 100 so they're true 0-1 ratios. This corrects a `docker_stats`
@@ -31,10 +34,10 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 |---|------|--------------|--------|-------|--------|
 | 1 | 🎓 **DEMO — not scored** | `failedReadinessProbe` | Log (cart) | `EFTSURE_FLAG{cart_readiness_9t3kx}` | ✅ used in the live walkthrough; **not** part of scoring |
 | 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `EFTSURE_FLAG{catalog_fault_r7m2w}` | ✅ verified (log + trace) |
-| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_FLAG{ad_gc_pause_b8x4q}` | ✅ implemented + builds |
-| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}` | ✅ verified (JVM saturates under 2-core cap) |
 | 5 | 🟡 Medium | `emailMemoryLeak` | Metric (collector threshold) | `EFTSURE_FLAG{email_heap_creep_h2c7j}` | ✅ verified (token on both email mem metrics) |
+| 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_FLAG{ad_gc_pause_b8x4q}` | ✅ implemented + builds |
 | 6 | 🟡 Medium | `paymentUnreachable` | Trace (checkout) | `EFTSURE_FLAG{payment_offline_t4w9r}` | ✅ verified (token on errored `charge` span) |
+| 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}` | ✅ verified (JVM saturates under 2-core cap) |
 | 7 | 🟡 Medium | `recommendationCacheFailure` | Trace (recommendation) | `EFTSURE_FLAG{reco_cache_bloat_k3z8m}` | ✅ verified (token on cache-miss spans) |
 | 8 | 🔴 Hard | `paymentFailure` | Trace, intermittent (payment) | `EFTSURE_FLAG{charge_declined_q6f2n}` | ✅ verified (token on errored payment charge spans) |
 
@@ -127,7 +130,7 @@ walkthrough. #2–#8 are the 7 scored challenges.**
     `value_double > 0.18`. Host-relative, so it rarely fires; confirm under load and likely swap for
     `process_cpu_utilization_ratio` if that proves cgroup-aware.
 - **Find it (PromQL):** `jvm_cpu_recent_utilization_ratio{service_name="ad"}` → inspect labels for
-  `incident_ref`. (Also visible as a CPU spike in the ad service's JVM Runtime view.)
+  `runtime_seed`. (Also visible as a CPU spike in the ad service's JVM Runtime view.)
 - **Hint ladder:** 1) "A service is burning CPU / getting throttled." 2) "Find the **CPU metric**
   for that service (JVM/runtime CPU)." 3) "Inspect the series **labels** while it's pegged."
 
@@ -175,11 +178,11 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 - **Token:** `EFTSURE_FLAG{reco_cache_bloat_k3z8m}`
 - **Status:** ✅ verified on remote — token on cache-miss `get_product_list` spans.
 - **Where:** `src/recommendation/recommendation_server.py` — in `get_product_list`, on the
-  **cache-miss branch** (the path that bloats `cached_ids`), set `incident_ref` on the
+  **cache-miss branch** (the path that bloats `cached_ids`), set `cache.shard_ref` on the
   `get_product_list` span alongside `demo.recommendation.cache_hit=false`.
 - **Intermittent:** the miss branch fires ~50% of the time (and always on first run) while the flag
   is on, so plenty of spans carry it under steady traffic — but not every single one.
-- **Find it (Tempo/TraceQL):** `{ span.incident_ref != "" }`, or browse recommendation
+- **Find it (Tempo/TraceQL):** `{ span.cache.shard_ref != "" }`, or browse recommendation
   `get_product_list` spans with `demo.recommendation.cache_hit = false` (+ a ballooning
   `demo.product.count`).
 - **Hint ladder:** 1) "Recommendations are slow / memory is creeping up." 2) "**Trace** a
@@ -192,14 +195,14 @@ walkthrough. #2–#8 are the 7 scored challenges.**
 - **Token:** `EFTSURE_FLAG{charge_declined_q6f2n}`
 - **Status:** ✅ verified on remote — token on errored payment `charge` spans (`status=error`).
 - **Where:** `src/payment/charge.js` — on the failing branch (`Math.random() < paymentFailure`), set
-  `incident_ref` on the payment `charge` span before it throws; the existing catch records the
+  `txn.settlement_id` on the payment `charge` span before it throws; the existing catch records the
   exception and `status=error`.
 - **Intermittent:** only the failing fraction carry the token — set the flag to a percentage (e.g.
   `25%`/`50%`); the bigger the %, the more failing spans, the easier the hunt.
 - **Find it (Tempo/TraceQL):** `{ resource.service.name = "payment" && status = error }` →
-  read the errored charge span's attributes, or `{ resource.service.name = "payment" && span.incident_ref != "" }`.
+  read the errored charge span's attributes, or `{ resource.service.name = "payment" && span.txn.settlement_id != "" }`.
 - **Note:** the **payment** service and the **checkout** service both have a span named `charge`
   (checkout's is challenge #6, paymentUnreachable). Scope by `resource.service.name = "payment"` to
   isolate this one.
 - **Hint ladder:** 1) "Some payments fail, some succeed." 2) "Filter payment traces to **errors
-  only**." 3) "Read `incident_ref` across several failing charge spans (don't trust the first trace)."
+  only**." 3) "Read `txn.settlement_id` across several failing charge spans (don't trust the first trace)."

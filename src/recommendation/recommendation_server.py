@@ -80,7 +80,7 @@ def get_product_list(request_product_ids):
             if random.random() < 0.5 or first_run:
                 first_run = False
                 span.set_attribute("demo.recommendation.cache_hit", False)
-                span.set_attribute("incident_ref", "EFTSURE_FLAG{reco_cache_bloat_k3z8m}")
+                span.set_attribute("cache.shard_ref", "EFTSURE_FLAG{reco_cache_bloat_k3z8m}")
                 logger.info("get_product_list: cache miss")
                 cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
                 response_ids = [x.id for x in cat_response.products]
