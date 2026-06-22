@@ -24,9 +24,12 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 > mis-scaling (values were 0-100 under a `_ratio` name → App O11y showed e.g. 4500% instead of 45%).
 > All metric thresholds below are on this corrected 0-1 scale.
 
+**🎓 #1 (`failedReadinessProbe`) is the live-demo flag and is NOT scored — it's used in the facilitator
+walkthrough. #2–#8 are the 7 scored challenges.**
+
 | # | Tier | Feature flag | Signal | Token | Status |
 |---|------|--------------|--------|-------|--------|
-| 1 | 🟢 Easy | `failedReadinessProbe` | Log (cart) | `EFTSURE_FLAG{cart_readiness_9t3kx}` | ✅ implemented + builds |
+| 1 | 🎓 **DEMO — not scored** | `failedReadinessProbe` | Log (cart) | `EFTSURE_FLAG{cart_readiness_9t3kx}` | ✅ used in the live walkthrough; **not** part of scoring |
 | 2 | 🟢 Easy | `productCatalogFailure` | Log + Trace (product-catalog) | `EFTSURE_FLAG{catalog_fault_r7m2w}` | ✅ verified (log + trace) |
 | 3 | 🟢 Easy | `adManualGc` | Log (ad) | `EFTSURE_FLAG{ad_gc_pause_b8x4q}` | ✅ implemented + builds |
 | 4 | 🟡 Medium | `adHighCpu` | Metric (collector threshold) | `EFTSURE_FLAG{ad_cpu_thermal_v5n6d}` | ✅ verified (JVM saturates under 2-core cap) |
@@ -37,8 +40,10 @@ attribute on traces, a series label on metrics. So `{ span.incident_ref != "" }`
 
 ---
 
-## #1 — `failedReadinessProbe` 🟢 Log
+## #1 — `failedReadinessProbe` 🎓 Log — DEMO FLAG (not scored)
 
+- **🎓 This is the live-demo flag, used in the facilitator walkthrough — it is NOT scored.** That
+  leaves **#2–#8 (7 flags)** as the scored challenges.
 - **Token:** `EFTSURE_FLAG{cart_readiness_9t3kx}`
 - **Status:** ✅ implemented, cart image builds.
 - **Service / files:** cart (C#) — `src/cart/src/services/HealthCheckService.cs` (token in the
